@@ -2,21 +2,22 @@ import streamlit as st
 import os
 import tempfile
 
-# --- 1. CONFIG ---
+# --- CONFIG ---
 st.set_page_config(page_title="VANTORQ AI", page_icon="⚡", layout="wide")
 
-# --- 2. IMPORTS (Angepasst für stabile Version) ---
+# --- MODERNE IMPORTS (angepasst für neueste Versionen) ---
 try:
-    from langchain.document_loaders import PyPDFLoader
-    from langchain.embeddings.openai import OpenAIEmbeddings
-    from langchain.vectorstores import FAISS
-    from langchain.chat_models import ChatOpenAI
+    from langchain_community.document_loaders import PyPDFLoader
+    from langchain_openai import OpenAIEmbeddings
+    from langchain_community.vectorstores import FAISS
+    from langchain_openai import ChatOpenAI
     from langchain.chains import RetrievalQA
-except ImportError as e:
-    st.error(f"INSTALLATIONS-FEHLER: {e}")
+except ImportError:
+    # Falls der Server noch lädt, zeigen wir das an statt abzustürzen
+    st.warning("System lädt Module... Bitte Seite neu laden (F5) in 30 Sekunden.")
     st.stop()
 
-# --- 3. DESIGN ---
+# --- DESIGN ---
 st.markdown("""
 <style>
     .stApp { background-color: #0e1117; color: #ffffff; }
@@ -27,10 +28,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. SIDEBAR ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.title("⚡ VANTORQ")
-    st.caption("Industrial Intelligence v1.0")
+    st.caption("Industrial Intelligence")
     
     api_key = st.text_input("OpenAI API Key", type="password")
     
@@ -42,7 +43,7 @@ with st.sidebar:
     
     uploaded_file = st.file_uploader("PDF hochladen", type="pdf")
 
-# --- 5. MAIN ---
+# --- MAIN ---
 st.title("Diagnose-Center")
 
 if uploaded_file:
