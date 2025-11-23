@@ -3,6 +3,6 @@ openai
 langchain
 langchain-community
 langchain-openai
-pypdf
 faiss-cpu
+pypdf
 tiktoken
