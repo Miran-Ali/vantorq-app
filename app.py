@@ -1,30 +1,10 @@
 import streamlit as st
 import os
-import subprocess
 import sys
+import subprocess
 import tempfile
 
-# --- NOTFALL-FIX (DER HAMMER) ---
-# Dieser Block prüft, ob die KI-Module da sind. Wenn nicht, installiert er sie mit Gewalt.
-try:
-    import langchain
-    import langchain_community
-    import langchain_openai
-    import faiss
-    import pypdf
-except ImportError:
-    st.warning("⚙️ System-Update: Installiere KI-Module... Bitte warten (ca. 45 Sekunden)...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "langchain", "langchain-community", "langchain-openai", "openai", "faiss-cpu", "pypdf", "tiktoken"])
-    st.experimental_rerun()
-
-# --- AB HIER STARTET DIE EIGENTLICHE APP ---
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import FAISS
-from langchain_openai import ChatOpenAI
-from langchain.chains import RetrievalQA
-
-# --- 1. DESIGN & CONFIG ---
+# --- 1. DESIGN & CONFIG (Startet sofort, braucht keine Installation) ---
 st.set_page_config(page_title="VANTORQ AI", page_icon="⚡", layout="wide")
 
 st.markdown("""
@@ -60,7 +40,31 @@ with st.sidebar:
 st.title("⚡ VANTORQ Diagnose-Center")
 st.markdown("KI-gestützte Analyse für Instandhaltung & Support.")
 
+# --- 4. LOGIK (Hier passiert die Magie erst, wenn man sie braucht) ---
 if uploaded_file is not None:
+    
+    # HIER INSTALLIEREN WIR ERST, WENN EINE DATEI HOCHGELADEN WIRD
+    # Das verhindert den Absturz beim Start!
+    with st.spinner('⚙️ System-Check & Initialisierung...'):
+        try:
+            import langchain
+            import openai
+            import tiktoken
+            import faiss
+            import pypdf
+        except ImportError:
+            st.warning("Installiere KI-Module (Einmalig)... Bitte warten...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "langchain", "langchain-community", "langchain-openai", "openai", "faiss-cpu", "pypdf", "tiktoken"])
+            st.success("Installation fertig! Bitte Seite neu laden.")
+            st.stop()
+
+    # Jetzt importieren wir sicher (Lazy Import)
+    from langchain_community.document_loaders import PyPDFLoader
+    from langchain_openai import OpenAIEmbeddings
+    from langchain_community.vectorstores import FAISS
+    from langchain_openai import ChatOpenAI
+    from langchain.chains import RetrievalQA
+
     with st.spinner('⚙️ VANTORQ analysiert Dokumente...'):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
             tmp_file.write(uploaded_file.getvalue())
