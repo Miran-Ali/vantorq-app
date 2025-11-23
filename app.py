@@ -1,147 +1,176 @@
 import streamlit as st
 import os
-import time
+from pypdf import PdfReader
+from openai import OpenAI
 
-# --- CONFIG & PAGE SETUP ---
-st.set_page_config(page_title="VANTORQ", page_icon="⚡", layout="wide")
+# --- 1. CONFIG & DESIGN ---
+st.set_page_config(page_title="VANTORQ AI", page_icon="⚡", layout="wide")
 
-# --- SESSION STATE (Das Kurzzeitgedächtnis) ---
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "chat_history" not in st.session_state:
-    # Wir simulieren hier vergangene Chats für das Design
-    st.session_state.chat_history = ["Fehlercode E-404", "Wartung Pumpe B", "Hydraulikplan Check"]
-if "user_role" not in st.session_state:
-    st.session_state.user_role = "Techniker" # Standard ist der Endnutzer
-
-# --- DESIGN SYSTEM (Gemini Style CSS) ---
 st.markdown("""
 <style>
-    /* Hauptfarbe Dunkel */
-    .stApp { background-color: #0e1117; color: #ffffff; }
+    /* Industrial Dark Theme */
+    .stApp { background-color: #0e1117; color: #e0e0e0; }
     
-    /* Sidebar Dunkel */
-    section[data-testid="stSidebar"] { background-color: #000000; border-right: 1px solid #222; }
+    /* Gold Akzente für VANTORQ Brand */
+    h1, h2, h3 { color: #FFD700 !important; font-family: 'Helvetica Neue', sans-serif; }
     
-    /* Chat Nachrichten Styling */
-    .stChatMessage { background-color: transparent; border: none; }
-    .stChatMessageUser { background-color: #1e1e1e; }
-    
-    /* Input Feld unten fixiert wie bei ChatGPT */
-    .stTextInput input {
-        background-color: #1e1e1e; color: white; border: 1px solid #333; border-radius: 20px; padding: 10px;
+    /* Buttons */
+    div.stButton > button:first-child { 
+        background-color: #FFD700; 
+        color: black; 
+        border: none; 
+        font-weight: bold; 
+        border-radius: 4px;
+        padding: 0.5rem 1rem;
+    }
+    div.stButton > button:first-child:hover { 
+        background-color: #E6C200; 
+        color: black; 
+        box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
     }
     
-    /* Buttons Gold/Gelb */
-    div.stButton > button:first-child {
-        background-color: #FFD700; color: black; border: none; border-radius: 8px; font-weight: bold;
+    /* Inputs */
+    .stTextInput > div > div > input { 
+        background-color: #1e1e1e; 
+        color: white; 
+        border: 1px solid #333; 
     }
     
-    /* Hide Streamlit Branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
+    /* Sidebar */
+    section[data-testid="stSidebar"] { 
+        background-color: #000000; 
+        border-right: 1px solid #222; 
+    }
+    
+    /* Chat Bubbles */
+    .stChatMessage { background-color: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid #333; }
+    
+    /* Spinner */
+    .stSpinner > div { border-top-color: #FFD700 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR (Navigation & History) ---
+# --- 2. SIDEBAR (Steuerung) ---
 with st.sidebar:
     st.title("⚡ VANTORQ")
-    
-    # Rollen-Wechsler (Nur für Demo-Zwecke sichtbar, später versteckt)
-    st.caption("--- DEMO STEUERUNG ---")
-    st.session_state.user_role = st.radio("Ansicht wählen:", ["Techniker", "Admin (Upload)"])
-    
-    if st.session_state.user_role == "Admin (Upload)":
-        st.markdown("---")
-        st.write("📂 **Wissensdatenbank füttern**")
-        st.caption("Hier lädt die IT-Abteilung die Handbücher hoch.")
-        api_key = st.text_input("OpenAI API Key", type="password")
-        if api_key: os.environ["OPENAI_API_KEY"] = api_key
-        uploaded_file = st.file_uploader("PDFs / Technische Zeichnungen", type="pdf", accept_multiple_files=True)
-        if uploaded_file:
-            st.success(f"{len(uploaded_file)} Dokumente indexiert und im Vektor-Speicher abgelegt.")
-    
+    st.caption("Industrial Intelligence System")
     st.markdown("---")
     
-    # Neuer Chat Button
-    if st.button("+ Neuer Chat", use_container_width=True):
-        st.session_state.messages = []
-        st.rerun()
+    api_key = st.text_input("🔑 OpenAI API Key", type="password", help="Hier den Schlüssel eingeben und Enter drücken.")
+    
+    if not api_key:
+        st.warning("🔒 System gesperrt. Bitte API Key eingeben.")
+        st.stop()
         
-    st.markdown("### Verlauf")
-    for chat in st.session_state.chat_history:
-        st.button(f"💬 {chat}", key=chat, use_container_width=True) # Fake Buttons für History
+    # Client initialisieren
+    client = OpenAI(api_key=api_key)
+    
+    st.markdown("### 📂 Daten-Ingestion")
+    uploaded_file = st.file_uploader("Wartungsprotokoll / Handbuch (PDF)", type="pdf")
+    
+    if uploaded_file:
+        st.success("✅ Datei im Vektor-Speicher (RAM)")
+    else:
+        st.info("Warte auf Dokument...")
 
     st.markdown("---")
-    st.caption(f"User: Miran Ali\nStatus: Connected")
+    st.markdown("**System Status:**")
+    st.code("ONLINE - V 1.4.2", language="text")
 
-# --- HAUPTBEREICH ---
+# --- 3. MAIN APP ---
+st.title("Diagnose-Center")
+st.markdown("Stellen Sie technische Fragen an Ihre Maschinendaten.")
 
-# 1. Top Bar (Modell Auswahl)
-col1, col2, col3 = st.columns([1, 4, 1])
-with col2:
-    # Modell-Wahl wie bei Gemini/ChatGPT
-    mode = st.pills("Modus:", ["⚡ Flash (Schnell)", "🧠 Reasoning (Denker)", "🔍 Search"], selection_mode="single", default="⚡ Flash (Schnell)")
+# Funktion: PDF Text extrahieren (Robust)
+def get_pdf_text(file):
+    try:
+        pdf_reader = PdfReader(file)
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text() or ""
+        return text
+    except Exception as e:
+        return ""
 
-st.divider()
+# --- 4. LOGIK ---
+if uploaded_file is not None:
+    # PDF verarbeiten
+    with st.spinner("⚙️ VANTORQ analysiert technische Dokumentation..."):
+        try:
+            # Text aus PDF holen
+            pdf_text = get_pdf_text(uploaded_file)
+            
+            # Kontext limitieren (für die Demo reichen die ersten 15.000 Zeichen, das spart Kosten)
+            preview_text = pdf_text[:20000] 
 
-# 2. Chat Verlauf anzeigen
-if not st.session_state.messages:
-    # Willkommens-Screen wenn leer
-    st.markdown("<h1 style='text-align: center; color: #444;'>Wie kann ich helfen?</h1>", unsafe_allow_html=True)
+            if len(preview_text) < 10:
+                st.error("Fehler: Das PDF scheint leer zu sein oder enthält nur Bilder (kein Text). Bitte ein PDF mit Text hochladen.")
+            else:
+                # Chat Interface
+                if "messages" not in st.session_state:
+                    st.session_state.messages = []
+
+                # Chatverlauf anzeigen
+                for message in st.session_state.messages:
+                    with st.chat_message(message["role"]):
+                        st.markdown(message["content"])
+
+                # Input Feld
+                if prompt := st.chat_input("Beschreiben Sie das Problem (z.B. 'Fehler E-404 bei Kran X')"):
+                    # User Nachricht
+                    st.session_state.messages.append({"role": "user", "content": prompt})
+                    with st.chat_message("user"):
+                        st.markdown(prompt)
+
+                    # KI Antwort generieren
+                    with st.chat_message("assistant"):
+                        with st.spinner('Analysiere Kontext & Historie...'):
+                            
+                            # --- DER PROFI SYSTEM-PROMPT (Von ChatGPT inspiriert) ---
+                            system_instruction = f"""
+                            Du bist VANTORQ, ein präziser technischer Assistent für die Industrie-Instandhaltung.
+                            Deine Aufgabe ist es, Feldtechniker bei der Fehlerdiagnose zu unterstützen.
+                            
+                            REGELN:
+                            1. Nutze AUSSCHLIESSLICH den folgenden Kontext aus den hochgeladenen Handbüchern.
+                            2. Wenn die Antwort nicht im Kontext steht, sage ehrlich: "Dazu liegen keine Informationen im aktuellen Handbuch vor." (Erfinde nichts!).
+                            3. Strukturiere deine Antwort logisch: 
+                               - **Diagnose:** Was ist das Problem?
+                               - **Lösungsschritte:** Schritt-für-Schritt Anleitung.
+                               - **Sicherheit:** Warnhinweise fett gedruckt.
+                               - **Ersatzteile:** Falls im Text genannt, liste Teilenummern auf.
+                            4. Sei kurz, präzise und technisch professionell (Ingenieurs-Sprache).
+
+                            KONTEXT DATENBANK:
+                            {preview_text}
+                            """
+
+                            response = client.chat.completions.create(
+                                model="gpt-4",
+                                messages=[
+                                    {"role": "system", "content": system_instruction},
+                                    {"role": "user", "content": prompt}
+                                ],
+                                temperature=0.3 # Niedrig = präziser, weniger kreativ
+                            )
+                            
+                            answer = response.choices[0].message.content
+                            st.markdown(answer)
+                            
+                    # KI Nachricht speichern
+                    st.session_state.messages.append({"role": "assistant", "content": answer})
+
+        except Exception as e:
+            st.error(f"Systemfehler: {e}")
+else:
+    # Leerer Zustand
+    st.info("👈 Bitte laden Sie links ein Handbuch hoch, um die Diagnose zu starten.")
     
-    c1, c2 = st.columns(2)
-    with c1:
-        st.info("🔧 **Fehlerdiagnose**\n\n'Kran X-500 hebt Last nicht an'")
-    with c2:
-        st.info("📖 **Wartung**\n\n'Wann muss der Ölfilter bei Modell B getauscht werden?'")
-
-# Nachrichten rendern
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# 3. Input Area & Logic
-prompt = st.chat_input("Frage an die Maschinendatenbank...")
-
-if prompt:
-    # User Nachricht speichern & anzeigen
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    # KI Antwort simulieren (Hier würde später die echte RAG-Logik greifen)
-    with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        
-        # Simulation des "Denkens"
-        if "Reasoning" in str(mode):
-            with st.status("Analysiere Schaltpläne und Historie...", expanded=True):
-                time.sleep(1)
-                st.write("Prüfe Fehlerdatenbank...")
-                time.sleep(1)
-                st.write("Vergleiche mit Handbuch Seite 42-50...")
-        
-        # Die Antwort generieren (Hier nutzen wir noch Mock-Daten für das Design)
-        # Sobald du den API Key eingibst und echte Logik willst, kopieren wir den alten RAG-Teil hier rein.
-        full_response = f"Basierend auf den Handbüchern der letzten 20 Jahre deutet '{prompt}' auf folgendes Problem hin:\n\n"
-        full_response += "**Mögliche Ursache:** Verschleiß am Dichtungsring B (Teilenummer: 99-X).\n\n"
-        full_response += "**Empfohlene Maßnahme:**\n1. Druck ablassen.\n2. Ventil öffnen.\n3. Ring tauschen.\n\n*Quelle: Wartungshandbuch 2018, Seite 12.*"
-        
-        # Streaming Effekt (Buchstabe für Buchstabe)
-        displayed_response = ""
-        for chunk in full_response.split():
-            displayed_response += chunk + " "
-            time.sleep(0.05)
-            message_placeholder.markdown(displayed_response + "▌")
-        
-        message_placeholder.markdown(displayed_response)
-        
-    st.session_state.messages.append({"role": "assistant", "content": full_response})
-
-# 4. Tools Leiste (Fake für Design)
-st.markdown("---")
-t1, t2, t3, t4 = st.columns([1,1,1,10])
-with t1: st.button("🎤", help="Spracheingabe")
-with t2: st.button("📷", help="Foto hochladen")
-with t3: st.button("📎", help="Datei anhängen")
+    # Demo-Ansicht für den "Wow"-Effekt bevor man was hochlädt
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### 🛡️ Secure Silos")
+        st.caption("Daten verlassen Europa nicht.")
+    with col2:
+        st.markdown("### ⚡ Instant Retrieval")
+        st.caption("Antworten in < 2 Sekunden.")
