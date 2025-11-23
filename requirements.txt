@@ -6,3 +6,4 @@ langchain-openai
 pypdf
 faiss-cpu
 tiktoken
+watchdog
