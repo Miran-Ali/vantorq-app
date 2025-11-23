@@ -2,22 +2,21 @@ import streamlit as st
 import os
 import tempfile
 
-# --- CONFIG ---
+# --- 1. CONFIG ---
 st.set_page_config(page_title="VANTORQ AI", page_icon="⚡", layout="wide")
 
-# --- IMPORTS (Ganz normal) ---
-# Wenn hier ein Fehler kommt, liegt es NUR an der requirements.txt
+# --- 2. IMPORTS (Angepasst für stabile Version) ---
 try:
-    from langchain_community.document_loaders import PyPDFLoader
-    from langchain_openai import OpenAIEmbeddings
-    from langchain_community.vectorstores import FAISS
-    from langchain_openai import ChatOpenAI
+    from langchain.document_loaders import PyPDFLoader
+    from langchain.embeddings.openai import OpenAIEmbeddings
+    from langchain.vectorstores import FAISS
+    from langchain.chat_models import ChatOpenAI
     from langchain.chains import RetrievalQA
 except ImportError as e:
     st.error(f"INSTALLATIONS-FEHLER: {e}")
     st.stop()
 
-# --- DESIGN ---
+# --- 3. DESIGN ---
 st.markdown("""
 <style>
     .stApp { background-color: #0e1117; color: #ffffff; }
@@ -28,10 +27,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     st.title("⚡ VANTORQ")
-    st.caption("Industrial Intelligence")
+    st.caption("Industrial Intelligence v1.0")
     
     api_key = st.text_input("OpenAI API Key", type="password")
     
@@ -43,7 +42,7 @@ with st.sidebar:
     
     uploaded_file = st.file_uploader("PDF hochladen", type="pdf")
 
-# --- MAIN ---
+# --- 5. MAIN ---
 st.title("Diagnose-Center")
 
 if uploaded_file:
@@ -62,7 +61,7 @@ if uploaded_file:
             llm = ChatOpenAI(model_name="gpt-4", temperature=0)
             qa_chain = RetrievalQA.from_chain_type(llm, retriever=vectorstore.as_retriever())
 
-            st.success(f"Bereit! {len(pages)} Seiten.")
+            st.success(f"Bereit! {len(pages)} Seiten indexiert.")
             
             query = st.text_input("Frage:")
             if query:
