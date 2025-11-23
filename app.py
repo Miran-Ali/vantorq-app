@@ -1,288 +1,257 @@
 import streamlit as st
 import time
-import random
 import datetime
 
 # -----------------------------------------------------------------------------
-# 1. KONFIGURATION & DESIGN SYSTEM
+# 1. SYSTEM CONFIGURATION & STRICT PALETTE
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="VANTORQ AI | Enterprise",
-    page_icon="⚡",
+    page_title="VANTORQ | Enterprise Engine",
+    page_icon="▪️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Das "ChatGPT / Enterprise Dark Mode" CSS
+# PROFI-CSS: Überschreibt alle Streamlit-Standards für einen "Clean Code" Look
 st.markdown("""
 <style>
-    /* --- FARBPALETTE --- */
+    /* --- STRICT MONOCHROME PALETTE --- */
     :root {
-        --bg-color: #0E1117;
-        --sidebar-bg: #000000;
-        --text-color: #E0E0E0;
-        --accent-color: #FFD700; /* VANTORQ Gold */
-        --user-msg-bg: #2B2D31;
-        --ai-msg-bg: #1A1C24;
+        --bg-core: #09090b;       /* Fast Schwarz (Zinc 950) */
+        --bg-card: #18181b;       /* Dunkelgrau (Zinc 900) */
+        --bg-hover: #27272a;      /* Hover Grau (Zinc 800) */
+        --border: #3f3f46;        /* Rahmen (Zinc 700) */
+        --text-primary: #f4f4f5;  /* Fast Weiß */
+        --text-secondary: #a1a1aa;/* Muted Grau */
+        --accent: #2563EB;        /* Professional Blue (nur für Highlights) */
     }
 
-    /* Grundlayout */
-    .stApp { background-color: var(--bg-color); color: var(--text-color); }
-    section[data-testid="stSidebar"] { background-color: var(--sidebar-bg); border-right: 1px solid #222; }
-
-    /* --- CHAT NACHRICHTEN --- */
-    .chat-container {
-        max-width: 800px;
-        margin: 0 auto;
-        padding-bottom: 100px;
+    /* Reset Streamlit Defaults */
+    .stApp { background-color: var(--bg-core); color: var(--text-primary); font-family: 'Inter', sans-serif; }
+    
+    /* Sidebar Styling */
+    section[data-testid="stSidebar"] { 
+        background-color: #000000; 
+        border-right: 1px solid var(--border);
     }
     
-    .message-box {
+    /* Input Felder: Clean & Minimal */
+    .stTextInput input, .stTextArea textarea {
+        background-color: var(--bg-card) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 6px !important; /* Kantiger, professioneller */
+        padding: 12px !important;
+    }
+    .stTextInput input:focus {
+        border-color: var(--accent) !important;
+        box-shadow: 0 0 0 1px var(--accent) !important;
+    }
+
+    /* Buttons: Einheitlich und professionell */
+    div.stButton > button {
+        background-color: var(--bg-card);
+        color: var(--text-primary);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 8px 16px;
+        font-size: 14px;
+        transition: all 0.2s ease;
+        width: 100%;
+    }
+    div.stButton > button:hover {
+        background-color: var(--bg-hover);
+        border-color: var(--text-secondary);
+    }
+    div.stButton > button:active {
+        background-color: var(--accent);
+        color: white;
+        border-color: var(--accent);
+    }
+
+    /* --- CHAT NACHRICHTEN DESIGN --- */
+    .msg-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        margin-bottom: 80px;
+    }
+    
+    .msg-row {
+        display: flex;
+        width: 100%;
+    }
+    
+    .msg-user {
+        justify-content: flex-end;
+    }
+    
+    .msg-ai {
+        justify-content: flex-start;
+    }
+    
+    .msg-bubble {
+        max-width: 80%;
         padding: 16px 20px;
-        border-radius: 12px;
-        margin-bottom: 16px;
-        line-height: 1.6;
+        border-radius: 4px; /* Industrieller Look */
         font-size: 15px;
-        animation: fadeIn 0.4s ease;
+        line-height: 1.6;
+        position: relative;
     }
     
-    .user-msg {
-        background-color: var(--user-msg-bg);
-        border-left: 3px solid #555;
+    .bubble-user {
+        background-color: var(--bg-hover); /* Dunkelgrau */
+        color: var(--text-primary);
+        border: 1px solid var(--border);
+        border-left: 2px solid var(--text-secondary);
     }
     
-    .ai-msg {
-        background-color: var(--ai-msg-bg);
-        border-left: 3px solid var(--accent-color);
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    .bubble-ai {
+        background-color: #000; /* Schwarz für maximalen Kontrast */
+        color: var(--text-primary);
+        border: 1px solid var(--border);
+        border-left: 2px solid var(--accent); /* Der einzige Farbklecks */
     }
 
-    /* --- QUELLEN ANZEIGE (RAG Feature) --- */
-    .source-tag {
+    .meta-tag {
         font-size: 11px;
-        background: #333;
-        color: #bbb;
-        padding: 4px 8px;
-        border-radius: 4px;
-        margin-top: 8px;
-        display: inline-block;
-        border: 1px solid #444;
+        color: var(--accent);
+        margin-top: 10px;
+        font-family: 'Courier New', monospace; /* Code-Optik für Daten */
+        opacity: 0.8;
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
 
-    /* --- INPUT FELD --- */
-    .stTextInput input {
-        background-color: #1E1E1E !important;
-        color: white !important;
-        border: 1px solid #444 !important;
-        border-radius: 24px !important;
-        padding: 12px 20px !important;
-        box-shadow: 0 0 10px rgba(0,0,0,0.5);
-    }
-    
-    /* Header entfernen */
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    /* Hide Bloat */
+    header, footer, .stDeployButton { visibility: hidden; }
     
 </style>
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. SESSION STATE (Das Gedächtnis der App)
+# 2. STATE MANAGEMENT
 # -----------------------------------------------------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
-if "role" not in st.session_state:
-    st.session_state.role = "Techniker" # Standard-Ansicht
-if "processing" not in st.session_state:
-    st.session_state.processing = False
 
 # -----------------------------------------------------------------------------
-# 3. SIDEBAR (Navigation & Status)
+# 3. UI LAYOUT
 # -----------------------------------------------------------------------------
+
+# --- SIDEBAR (Navigation) ---
 with st.sidebar:
-    st.markdown("## ⚡ VANTORQ")
-    st.caption("Industrial Intelligence Engine v2.4")
+    st.markdown("<h3 style='margin-bottom:0; padding-bottom:0;'>▪️ VANTORQ</h3>", unsafe_allow_html=True)
+    st.caption("SYSTEM STATUS: ONLINE")
     
     st.markdown("---")
     
-    # KUNDEN-SIMULATION
-    st.markdown("### 🏢 Mandant")
-    st.info("**Deutsche Maschinenbau GmbH**\n\nStandort: Hamburg Werk 2")
+    # Minimalistische Status-Anzeige
+    st.markdown("**MANDANT**")
+    st.code("DE-MB-8291") # Sieht technischer aus als Text
     
-    st.markdown("### 🧠 Wissens-Datenbank")
-    col1, col2 = st.columns([1,4])
-    with col1: st.write("✅")
-    with col2: st.caption("2.4 TB Historische Daten")
-    
-    col1, col2 = st.columns([1,4])
-    with col1: st.write("✅")
-    with col2: st.caption("12.400 PDF Handbücher")
-    
-    col1, col2 = st.columns([1,4])
-    with col1: st.write("✅")
-    with col2: st.caption("ERP-Live-Verbindung")
+    st.markdown("**DATABASE**")
+    st.markdown("""
+    <div style="display:flex; justify-content:space-between; font-size:13px; color:#666; margin-bottom:4px;">
+        <span>PDF Index</span>
+        <span style="color:#fff;">12,401</span>
+    </div>
+    <div style="background:#222; height:4px; width:100%; border-radius:2px;">
+        <div style="background:#2563EB; height:4px; width:98%; border-radius:2px;"></div>
+    </div>
+    """, unsafe_allow_html=True)
     
     st.markdown("---")
     
-    # ROLLEN-WECHSEL (Geheim für dich für die Demo)
-    st.markdown("### 🔧 Systemsteuerung")
-    mode_selection = st.radio("Ansicht wählen:", ["Techniker (App)", "Admin (Data Ingest)"])
-    st.session_state.role = mode_selection
+    # Controls (Funktional & Clean)
+    mode = st.selectbox("Modus", ["Live Diagnose", "Admin Konsole"], label_visibility="collapsed")
     
-    if st.button("🗑️ Chat leeren", use_container_width=True):
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("Neuer Prozess"):
         st.session_state.messages = []
         st.rerun()
 
-# -----------------------------------------------------------------------------
-# 4. HAUPTBEREICH - LOGIK
-# -----------------------------------------------------------------------------
+# --- MAIN AREA ---
 
-# --- ANSICHT A: ADMIN / DATA INGEST (Zum Angeben beim Kunden) ---
-if st.session_state.role == "Admin (Data Ingest)":
-    st.title("📂 Data Ingestion Hub")
-    st.markdown("Hier werden die physischen und digitalen Daten des Unternehmens in die KI eingespeist.")
-    
-    st.warning("⚠️ Zugriff nur für IT-Administratoren")
-    
-    c1, c2 = st.columns(2)
-    with c1:
-        st.file_uploader("Handbücher / PDFs hochladen", accept_multiple_files=True)
-    with c2:
-        st.text_area("Handschriftliche Notizen (OCR Text)", height=150, placeholder="Paste OCR text here...")
-    
-    st.markdown("### Vektor-Datenbank Status")
-    st.progress(100, text="Indexierung abgeschlossen. System bereit für Abfragen.")
-    
-    st.markdown("---")
-    st.write("Verbundene Systeme:")
-    st.code("SAP S/4HANA [Connected]\nOracle Database [Connected]\nSharePoint Legacy [Connected]")
+# Leerer Zustand (Empty State) - Clean Typography
+if not st.session_state.messages:
+    st.markdown("""
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:60vh; text-align:center;">
+        <h1 style="color: #333; font-size: 40px; margin-bottom: 10px;">VANTORQ</h1>
+        <p style="color: #666; max-width: 500px;">
+            Industrielle KI-Diagnose für Wartung & Betrieb.<br>
+            Verbunden mit Archivserver (1995-2024).
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
-# --- ANSICHT B: TECHNIKER / CHAT (Das Produkt) ---
-else:
-    # Header Bereich
-    c1, c2 = st.columns([6, 1])
-    with c1:
-        # Modell Auswahl (Fake aber cool)
-        st.markdown("**Modell:** `VANTORQ Industrial Pro (Fine-Tuned)`")
-    with c2:
-        st.write("🟢 Online")
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # WILLKOMMENS-SCREEN (Wenn Chat leer)
-    if not st.session_state.messages:
-        st.markdown("""
-        <div style="text-align: center; color: #666; margin-top: 50px;">
-            <h1>Wie kann ich helfen?</h1>
-            <p>Ich habe Zugriff auf alle Wartungsprotokolle seit 1995.</p>
+# Nachrichten rendern
+for msg in st.session_state.messages:
+    if msg["role"] == "user":
+        st.markdown(f"""
+        <div class="msg-row msg-user">
+            <div class="msg-bubble bubble-user">
+                {msg["content"]}
+            </div>
         </div>
         """, unsafe_allow_html=True)
-        
-        # Quick Buttons
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("Druckabfall Hydraulik", use_container_width=True):
-                st.session_state.input_buffer = "Druckabfall Hydraulik Pumpe B"
-        with col2:
-            if st.button("Fehlercode E-404", use_container_width=True):
-                st.session_state.input_buffer = "Was bedeutet Fehlercode E-404?"
-        with col3:
-            if st.button("Wartungsplan Fräse", use_container_width=True):
-                st.session_state.input_buffer = "Zeige Wartungsplan für CNC Fräse 2"
-
-    # CHAT HISTORY ANZEIGEN
-    for msg in st.session_state.messages:
-        if msg["role"] == "user":
-            st.markdown(f'<div class="message-box user-msg">👤 <b>Techniker:</b><br>{msg["content"]}</div>', unsafe_allow_html=True)
-        else:
-            # KI Nachricht mit HTML Parsing für Fettschrift etc.
-            st.markdown(f"""
-            <div class="message-box ai-msg">
-                🤖 <b>VANTORQ AI:</b><br>{msg["content"]}
-                <br>
-                <div class="source-tag">📚 {msg["source"]}</div>
+    else:
+        st.markdown(f"""
+        <div class="msg-row msg-ai">
+            <div class="msg-bubble bubble-ai">
+                {msg["content"]}
+                <div class="meta-tag">
+                    <span>⚡</span> {msg["source"]}
+                </div>
             </div>
-            """, unsafe_allow_html=True)
+        </div>
+        """, unsafe_allow_html=True)
 
-    # INPUT FELD (unten verankert)
-    user_input = st.chat_input("Beschreibe das Problem, mache ein Foto oder nenne einen Code...")
+# Input Area - Unten fixiert
+st.markdown("---")
+c1, c2 = st.columns([8, 1])
 
-    # --- KI LOGIK (SIMULATION) ---
-    if user_input:
-        # 1. User Nachricht sofort anzeigen
-        st.session_state.messages.append({"role": "user", "content": user_input, "source": ""})
-        st.rerun()
+with c1:
+    prompt = st.chat_input("Befehl eingeben oder Fehlercode scannen...")
 
-    # Wenn eine neue User-Nachricht da ist, aber noch keine Antwort
-    if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
+if prompt:
+    # 1. User Input speichern
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.rerun()
+
+# KI Antwort Logik
+if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
+    with st.spinner(""):
+        time.sleep(0.8) # Kurze professionelle Verzögerung
         
-        with st.spinner("Analysiere 2.4 TB Firmendaten..."):
-            time.sleep(1.5) # Denkpause für Realismus
-            
-            # --- INTELLIGENTE SIMULATION ---
-            # Hier simulieren wir, dass er "echte" Dokumente findet
-            
-            txt = user_input.lower()
-            response_text = ""
-            source_text = ""
-            
-            if "hydraulik" in txt or "druck" in txt:
-                response_text = """
-                **Diagnose: Kritischer Druckabfall im Hauptkreis.**
-                
-                Basierend auf den Log-Dateien der letzten 48h und dem Handbuch "Serie-X":
-                Das Problem liegt höchstwahrscheinlich am **Überdruckventil (Teil #8892)** oder einer Leckage an **Schlauch B4**.
-                
-                **Handlungsempfehlung:**
-                1. Not-Aus betätigen.
-                2. Ventil auf Korrosion prüfen (siehe Bild 4.2 im Handbuch).
-                3. Falls undicht: Ersatzteil #8892 aus Lagerreihe 4 holen.
+        # Simulierte Antwort-Logik
+        user_text = st.session_state.messages[-1]["content"].lower()
+        
+        if "admin" in str(mode).lower():
+             # Admin View Simulation
+            response = "Upload-Protokoll aktiv. Bitte ziehen Sie Dateien in den markierten Bereich."
+            src = "System: Ingest-Mode"
+        else:
+            # Techniker View Simulation
+            if "fehler" in user_text or "code" in user_text:
+                response = """
+                **Fehleridentifikation: Positiv.**<br><br>
+                Der Code korreliert mit einem Spannungsabfall im Steuermodul K.
+                Dies tritt laut Historie häufig nach langen Stillstandzeiten auf.<br><br>
+                **Maßnahme:** Modul K4 resetten und Sicherung F1 prüfen.
                 """
-                source_text = "Quelle: Wartungshandbuch Kap. 4, S. 12 & Logfile_2024.txt"
-                
-            elif "fehler" in txt or "code" in txt:
-                response_text = """
-                **Fehlercode Identifiziert.**
-                
-                Dieser Code deutet auf eine **Unterspannung im Steuermodul** hin. 
-                Dies trat historisch bereits 14-mal auf, meistens montags nach dem Kaltstart.
-                
-                **Lösung:**
-                Setzen Sie das Modul C zurück (Reset-Knopf 5 Sekunden halten). Prüfen Sie anschließend die Sicherung F12.
+                src = "SRC: Handbuch S.42 | Log: 2023-11"
+            elif "hydraulik" in user_text:
+                response = """
+                **Drucksystem Analyse**<br><br>
+                Sollwerte weichen um 15% ab. Verdacht auf Leckage im Rücklauf.<br>
+                Bitte Dichtungsring 4B visuell prüfen.
                 """
-                source_text = "Quelle: Fehlerdatenbank Export 2023 (CSV)"
-                
-            elif "wartung" in txt:
-                response_text = """
-                **Wartungsplan Status: Überfällig.**
-                
-                Die letzte Wartung für dieses Gerät war am 12.05.2023.
-                Gemäß Vorschrift (ISO 9001) müssen folgende Teile getauscht werden:
-                
-                * Ölfilter (Typ X)
-                * Keilriemen
-                * Dichtungsringe Satz 4
-                """
-                source_text = "Quelle: SAP Wartungsplaner & ISO Dokumentation"
-                
+                src = "SRC: Schaltplan Hyd-04"
             else:
-                response_text = """
-                Ich habe in den Dokumenten nach diesem Begriff gesucht.
-                
-                Es gibt **4 relevante Einträge** in den Handschriftlichen Notizen von Hr. Müller (2019).
-                Es scheint sich um ein Problem mit der **Zufuhreinheit** zu handeln. Bitte prüfen Sie, ob die Lichtschranke sauber ist.
-                """
-                source_text = "Quelle: Notizen_Werkstatt_Scan_04.pdf"
+                response = f"Eintrag '{user_text}' in 4 Dokumenten gefunden. Analysiere Kontext..."
+                src = "SRC: Vektor-DB Index"
 
-            # Nachricht speichern
-            st.session_state.messages.append({"role": "ai", "content": response_text, "source": source_text})
-            st.rerun()
-
-    # --- FAKE TOOLS (Nur für Optik) ---
-    st.markdown("---")
-    col1, col2, col3, col4 = st.columns([1,1,1,10])
-    with col1: st.button("📷", help="Fotoanalyse starten (Demo)")
-    with col2: st.button("🎤", help="Sprachnotiz (Demo)")
-    with col3: st.button("📞", help="Support anrufen")
+        st.session_state.messages.append({"role": "ai", "content": response, "source": src})
+        st.rerun()
