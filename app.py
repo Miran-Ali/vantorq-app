@@ -1,12 +1,22 @@
 import streamlit as st
 import os
-import sys
-import subprocess
 import tempfile
 
-# --- 1. DESIGN & CONFIG (Startet sofort, braucht keine Installation) ---
+# --- 1. CONFIG & IMPORTS ---
 st.set_page_config(page_title="VANTORQ AI", page_icon="⚡", layout="wide")
 
+# Wir importieren die KI-Sachen erst hier, damit Streamlit sie sicher findet
+try:
+    from langchain_community.document_loaders import PyPDFLoader
+    from langchain_openai import OpenAIEmbeddings
+    from langchain_community.vectorstores import FAISS
+    from langchain_openai import ChatOpenAI
+    from langchain.chains import RetrievalQA
+except ImportError as e:
+    st.error(f"System-Fehler: Module nicht geladen. Bitte App neu starten ('Reboot'). Fehler: {e}")
+    st.stop()
+
+# --- 2. CSS DESIGN ---
 st.markdown("""
 <style>
     .stApp { background-color: #0e1117; color: #ffffff; }
@@ -15,10 +25,11 @@ st.markdown("""
     div.stButton > button:first-child:hover { background-color: #E6C200; color: black; }
     .stTextInput > div > div > input { background-color: #262730; color: white; border: 1px solid #444; }
     section[data-testid="stSidebar"] { background-color: #000000; border-right: 1px solid #333; }
+    .stSpinner > div { border-color: #FFD700 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. SIDEBAR ---
+# --- 3. SIDEBAR ---
 with st.sidebar:
     st.markdown("# VANTORQ")
     st.markdown("### Industrial Intelligence")
@@ -34,64 +45,45 @@ with st.sidebar:
     st.markdown("---")
     uploaded_file = st.file_uploader("PDF hier hochladen", type="pdf")
     st.markdown("---")
-    st.info("System Status: **ONLINE**")
+    st.success("System: **ONLINE**")
 
-# --- 3. HAUPTBEREICH ---
+# --- 4. MAIN APP ---
 st.title("⚡ VANTORQ Diagnose-Center")
 st.markdown("KI-gestützte Analyse für Instandhaltung & Support.")
 
-# --- 4. LOGIK (Hier passiert die Magie erst, wenn man sie braucht) ---
 if uploaded_file is not None:
-    
-    # HIER INSTALLIEREN WIR ERST, WENN EINE DATEI HOCHGELADEN WIRD
-    # Das verhindert den Absturz beim Start!
-    with st.spinner('⚙️ System-Check & Initialisierung...'):
+    with st.spinner('⚙️ VANTORQ analysiert Dokumente (Vektorisierung läuft)...'):
         try:
-            import langchain
-            import openai
-            import tiktoken
-            import faiss
-            import pypdf
-        except ImportError:
-            st.warning("Installiere KI-Module (Einmalig)... Bitte warten...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "langchain", "langchain-community", "langchain-openai", "openai", "faiss-cpu", "pypdf", "tiktoken"])
-            st.success("Installation fertig! Bitte Seite neu laden.")
-            st.stop()
+            # Temporäre Datei speichern
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                tmp_file.write(uploaded_file.getvalue())
+                tmp_file_path = tmp_file.name
 
-    # Jetzt importieren wir sicher (Lazy Import)
-    from langchain_community.document_loaders import PyPDFLoader
-    from langchain_openai import OpenAIEmbeddings
-    from langchain_community.vectorstores import FAISS
-    from langchain_openai import ChatOpenAI
-    from langchain.chains import RetrievalQA
-
-    with st.spinner('⚙️ VANTORQ analysiert Dokumente...'):
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            tmp_file.write(uploaded_file.getvalue())
-            tmp_file_path = tmp_file.name
-
-        try:
+            # A. PDF Laden
             loader = PyPDFLoader(tmp_file_path)
             pages = loader.load_and_split()
             
+            # B. Gehirn bauen
             embeddings = OpenAIEmbeddings()
             vectorstore = FAISS.from_documents(pages, embeddings)
             
+            # C. Suche einrichten
             llm = ChatOpenAI(model_name="gpt-4", temperature=0)
             qa_chain = RetrievalQA.from_chain_type(llm, retriever=vectorstore.as_retriever())
 
-            st.success(f"✅ Analyse abgeschlossen! {len(pages)} Seiten indexiert.")
+            st.success(f"✅ Analyse abgeschlossen! {len(pages)} Seiten im Index.")
             st.markdown("---")
 
-            query = st.text_input("🔧 Beschreiben Sie den Fehler oder das Bauteil:")
+            # D. Chat
+            query = st.text_input("🔧 Fehler oder Frage beschreiben:")
             
             if query:
                 with st.spinner('🔍 Suche Lösung im Archiv...'):
                     response = qa_chain.run(query)
-                    st.markdown("### 💡 Lösungsvorschlag:")
-                    st.success(response)
+                    st.markdown("### 💡 Lösung:")
+                    st.info(response)
 
         except Exception as e:
-            st.error(f"Fehler: {e}")
+            st.error(f"Ein Fehler ist aufgetreten: {e}")
 else:
     st.info("👈 Bitte laden Sie zuerst ein Handbuch in der Sidebar hoch.")
