@@ -1,23 +1,11 @@
 import streamlit as st
 import os
-import tempfile
+from pypdf import PdfReader
+from openai import OpenAI
 
-# --- CONFIG ---
+# --- 1. CONFIG & DESIGN ---
 st.set_page_config(page_title="VANTORQ AI", page_icon="⚡", layout="wide")
 
-# --- MODERNE IMPORTS (angepasst für neueste Versionen) ---
-try:
-    from langchain_community.document_loaders import PyPDFLoader
-    from langchain_openai import OpenAIEmbeddings
-    from langchain_community.vectorstores import FAISS
-    from langchain_openai import ChatOpenAI
-    from langchain.chains import RetrievalQA
-except ImportError:
-    # Falls der Server noch lädt, zeigen wir das an statt abzustürzen
-    st.warning("System lädt Module... Bitte Seite neu laden (F5) in 30 Sekunden.")
-    st.stop()
-
-# --- DESIGN ---
 st.markdown("""
 <style>
     .stApp { background-color: #0e1117; color: #ffffff; }
@@ -25,13 +13,15 @@ st.markdown("""
     div.stButton > button:first-child { background-color: #FFD700; color: black; border: none; font-weight: bold; }
     .stTextInput > div > div > input { background-color: #262730; color: white; border: 1px solid #444; }
     section[data-testid="stSidebar"] { background-color: #000000; border-right: 1px solid #333; }
+    /* Spinner Farbe */
+    .stSpinner > div { border-top-color: #FFD700 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR ---
+# --- 2. SIDEBAR ---
 with st.sidebar:
     st.title("⚡ VANTORQ")
-    st.caption("Industrial Intelligence")
+    st.caption("Industrial Intelligence (Direct-Mode)")
     
     api_key = st.text_input("OpenAI API Key", type="password")
     
@@ -39,37 +29,70 @@ with st.sidebar:
         st.warning("Bitte Key eingeben.")
         st.stop()
         
-    os.environ["OPENAI_API_KEY"] = api_key
+    # Client initialisieren
+    client = OpenAI(api_key=api_key)
     
     uploaded_file = st.file_uploader("PDF hochladen", type="pdf")
+    st.success("System Status: **ONLINE**")
 
-# --- MAIN ---
+# --- 3. MAIN APP ---
 st.title("Diagnose-Center")
 
-if uploaded_file:
-    with st.spinner("Analysiere..."):
+# Funktion: PDF Text extrahieren
+def get_pdf_text(file):
+    pdf_reader = PdfReader(file)
+    text = ""
+    for page in pdf_reader.pages:
+        text += page.extract_text()
+    return text
+
+if uploaded_file is not None:
+    # PDF verarbeiten
+    with st.spinner("Lese Dokument..."):
         try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                tmp.write(uploaded_file.getvalue())
-                tmp_path = tmp.name
+            # Text aus PDF holen
+            pdf_text = get_pdf_text(uploaded_file)
+            
+            # Wir kürzen den Text für die Demo, falls er zu lang ist (Token Limit sparen)
+            # Für Handbücher reicht das meistens
+            preview_text = pdf_text[:15000] 
 
-            loader = PyPDFLoader(tmp_path)
-            pages = loader.load_and_split()
-            
-            embeddings = OpenAIEmbeddings()
-            vectorstore = FAISS.from_documents(pages, embeddings)
-            
-            llm = ChatOpenAI(model_name="gpt-4", temperature=0)
-            qa_chain = RetrievalQA.from_chain_type(llm, retriever=vectorstore.as_retriever())
+            st.success(f"✅ Dokument geladen! ({len(pdf_text)} Zeichen erkannt)")
+            st.markdown("---")
 
-            st.success(f"Bereit! {len(pages)} Seiten indexiert.")
+            # Chat Interface
+            query = st.text_input("🔧 Fehler oder Frage beschreiben:")
             
-            query = st.text_input("Frage:")
             if query:
-                res = qa_chain.run(query)
-                st.info(res)
-                
+                with st.spinner('Analysiere mit GPT-4...'):
+                    # Direkte Anfrage an OpenAI (Ohne Langchain)
+                    prompt = f"""
+                    Du bist VANTORQ, eine industrielle KI für Instandhaltung.
+                    Nutze NUR den folgenden Kontext aus dem Handbuch, um die Frage zu beantworten.
+                    Wenn die Antwort nicht im Text steht, sag das.
+                    
+                    KONTEXT HANDBUCH:
+                    {preview_text}
+                    
+                    FRAGE DES TECHNIKERS:
+                    {query}
+                    
+                    ANTWORT (Präzise und technisch):
+                    """
+                    
+                    response = client.chat.completions.create(
+                        model="gpt-4",
+                        messages=[
+                            {"role": "system", "content": "Du bist ein technischer Assistent."},
+                            {"role": "user", "content": prompt}
+                        ]
+                    )
+                    
+                    answer = response.choices[0].message.content
+                    st.markdown("### 💡 Lösung:")
+                    st.info(answer)
+
         except Exception as e:
-            st.error(f"Fehler: {e}")
+            st.error(f"Fehler beim Lesen: {e}")
 else:
-    st.info("Bitte PDF in der Sidebar hochladen.")
+    st.info("👈 Bitte laden Sie zuerst ein Handbuch in der Sidebar hoch.")
