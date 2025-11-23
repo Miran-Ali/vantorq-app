@@ -2,21 +2,21 @@ import streamlit as st
 import os
 import tempfile
 
-# --- 1. CONFIG & IMPORTS ---
+# --- 1. CONFIG & SETUP ---
 st.set_page_config(page_title="VANTORQ AI", page_icon="⚡", layout="wide")
 
-# Wir importieren die KI-Sachen erst hier, damit Streamlit sie sicher findet
+# Imports (Ganz normal, ohne Tricks)
 try:
     from langchain_community.document_loaders import PyPDFLoader
     from langchain_openai import OpenAIEmbeddings
     from langchain_community.vectorstores import FAISS
     from langchain_openai import ChatOpenAI
     from langchain.chains import RetrievalQA
-except ImportError as e:
-    st.error(f"System-Fehler: Module nicht geladen. Bitte App neu starten ('Reboot'). Fehler: {e}")
+except ImportError:
+    st.error("⚠️ System-Fehler: Die KI-Module wurden nicht geladen. Bitte unten rechts auf 'Manage app' -> 'Reboot app' klicken.")
     st.stop()
 
-# --- 2. CSS DESIGN ---
+# --- 2. CSS DESIGN (Industrial Dark) ---
 st.markdown("""
 <style>
     .stApp { background-color: #0e1117; color: #ffffff; }
@@ -35,7 +35,9 @@ with st.sidebar:
     st.markdown("### Industrial Intelligence")
     st.markdown("---")
     
+    # API Key sicher abfragen
     api_key = st.text_input("OpenAI API Key", type="password", placeholder="sk-...")
+    
     if not api_key:
         st.warning("⚠️ Bitte API Key eingeben.")
         st.stop()
@@ -45,14 +47,14 @@ with st.sidebar:
     st.markdown("---")
     uploaded_file = st.file_uploader("PDF hier hochladen", type="pdf")
     st.markdown("---")
-    st.success("System: **ONLINE**")
+    st.success("System Status: **ONLINE**")
 
-# --- 4. MAIN APP ---
+# --- 4. HAUPTBEREICH ---
 st.title("⚡ VANTORQ Diagnose-Center")
 st.markdown("KI-gestützte Analyse für Instandhaltung & Support.")
 
 if uploaded_file is not None:
-    with st.spinner('⚙️ VANTORQ analysiert Dokumente (Vektorisierung läuft)...'):
+    with st.spinner('⚙️ VANTORQ analysiert Dokumente (Vektorisierung)...'):
         try:
             # Temporäre Datei speichern
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
@@ -84,6 +86,6 @@ if uploaded_file is not None:
                     st.info(response)
 
         except Exception as e:
-            st.error(f"Ein Fehler ist aufgetreten: {e}")
+            st.error(f"Ein technischer Fehler ist aufgetreten: {e}")
 else:
     st.info("👈 Bitte laden Sie zuerst ein Handbuch in der Sidebar hoch.")
